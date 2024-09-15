@@ -51,7 +51,7 @@ class _SetupPageState extends State<SetupPage> {
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('OpenAI', style: TextStyle(color: Colors.white, fontSize: 50)),
+                Image.asset('assets/images/openai-white-lockup.png', width: 200),
                 SizedBox(height: 30),
                 Text('Enter your OpenAI API Key below, this is how Miles will process your requests.', style: TextStyle(color: Colors.white, fontSize: 17)),
               ],
@@ -62,7 +62,7 @@ class _SetupPageState extends State<SetupPage> {
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Deepgram', style: TextStyle(color: Colors.white, fontSize: 50)),
+                Image.asset('assets/images/deepgram-logo-dark.png', width: 200),
                 SizedBox(height: 30),
                 Text('Enter your Deepgram API Key below, this is how Miles will understand your voice.', style: TextStyle(color: Colors.white, fontSize: 17)),
               ],
@@ -166,7 +166,7 @@ class _SetupPageState extends State<SetupPage> {
     }
   }
 
-  void _completeSetup() {
+  void _completeSetup() async {
     final openAIApiKey = _openAIApiKeyController.text;
     final deepgramApiKey = _deepgramApiKeyController.text;
 
@@ -179,12 +179,14 @@ class _SetupPageState extends State<SetupPage> {
       return;
     }
 
-    widget.appController.completeSetup(openAIApiKey, deepgramApiKey);
-  
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => HomePage(appController: widget.appController)),
-    );
+    
+
+    try {
+      await widget.appController.completeSetup(openAIApiKey, deepgramApiKey);
+  } catch (e) {
+    _showError('Error during setup: $e');
   }
+}
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

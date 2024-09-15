@@ -37,6 +37,7 @@ enum TapType { single, double }
 class AppController with ChangeNotifier {
   late final Frame frame;
   bool _isFrameConnected = false;
+  bool get isFrameConnected => _isFrameConnected;
   int _batteryLevel = 0;
   int _tapCount = 0;
   Timer? _tapTimer;
@@ -216,49 +217,69 @@ class AppController with ChangeNotifier {
   Future<void> _initializeController() async {
     print("Starting AppController initialization");
     try {
-      frame = Frame();
-      print("Frame created");
+      await _loadSetupStatus();
       
-      _assistantAPI = AssistantAPI(this);
-      print("AssistantAPI created");
-
-      await _initializeFrame();
-      print("Frame initialized");
-
-      await _initializeBackgroundExecution();
-      print("Background execution initialized");
-
-      await _initializeAssistant();
-      print("Assistant initialized");
-
-      await _initializeDatabase();
-      print("Database initialized");
-
-      await _loadInteractionHistory();
-      print("Interaction history loaded");
-
-      await _loadNotes();
-      print("Notes loaded");
-
-      await _loadSetupStatus(); // Load setup status
       if (_isSetupComplete) {
-        await Strings.loadApiKeys(); // Load API keys if setup is complete
-        _deepgramApiKey = await Strings.getDeepgramApiKey(); // Fetch the Deepgram API key
-        _initializeDeepgram(); // Initialize Deepgram with loaded API key
+        await _fullInitialization();
+      } else {
+        _isInitialized = true;
       }
-
-      await updateAssistantTools(); // Add this line
-
-      await _loadMotionThresholds();
-      await _loadCalibrationData();
-      _startMotionDetection();
-
-      _isInitialized = true;
-      print("AppController initialization complete");
     } catch (e, stackTrace) {
       print("Error during AppController initialization: $e");
       print("Stack trace: $stackTrace");
     } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fullInitialization() async {
+    frame = Frame();
+    _assistantAPI = AssistantAPI(this);
+
+    await _initializeFrame();
+    await _initializeBackgroundExecution();
+    await _initializeAssistant();
+    await _initializeDatabase();
+    await _loadInteractionHistory();
+    await _loadNotes();
+
+    await Strings.loadApiKeys();
+    _deepgramApiKey = await Strings.getDeepgramApiKey();
+    _initializeDeepgram();
+
+    await updateAssistantTools();
+
+    await _loadMotionThresholds();
+    await _loadCalibrationData();
+    _startMotionDetection();
+
+    _isInitialized = true;
+  }
+
+  Future<void> _loadSetupStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isSetupComplete = prefs.getBool('isSetupComplete') ?? false;
+    print("Loaded setup status: $_isSetupComplete");
+  }
+
+  Future<void> completeSetup(String openAIApiKey, String deepgramApiKey) async {
+    try {
+      await Strings.saveOpenAIApiKey(openAIApiKey);
+      await Strings.saveDeepgramApiKey(deepgramApiKey);
+      await Strings.setSetupComplete();
+      _isSetupComplete = true;
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isSetupComplete', true);
+      
+      await _fullInitialization();
+      
+      print("Setup complete, full initialization done");
+    } catch (e) {
+      print("Error during setup: $e");
+      throw e; // Rethrow the error to be caught in SetupPage
+    } finally {
+      _isInitialized = true;
       notifyListeners();
     }
   }
@@ -279,7 +300,6 @@ class AppController with ChangeNotifier {
     }
   }
 
-  bool get isFrameConnected => _isFrameConnected;
   int get batteryLevel => _batteryLevel;
   AppState get currentState => _currentState;
   int get totalTapCount => _totalTapCount;
@@ -296,35 +316,66 @@ class AppController with ChangeNotifier {
   Future<void> _initializeFrame() async {
     try {
       await BrilliantBluetooth.requestPermission();
-      await _connectToFrame();
-      startConnectionCheck();
-      _startBatteryUpdateTimer(); // Add this line
+      await _connectToFrame(timeout: Duration(seconds: 3));
+      _startConnectionCheck();
+      _startBatteryUpdateTimer();
     } catch (e) {
       print("Error initializing frame: $e");
     }
   }
 
-  Future<void> _connectToFrame({int maxRetries = 3}) async {
-    int retryCount = 0;
-    while (!_isFrameConnected && retryCount < maxRetries) {
-      final didConnect = await frame.connect();
+  Timer? _connectionCheckTimer;
+  Timer? _reconnectionTimer;
+
+  Future<void> _connectToFrame({Duration? timeout}) async {
+    if (_isFrameConnected) return;
+
+    try {
+      bool didConnect = await frame.connect().timeout(timeout ?? Duration(seconds: 30));
       if (didConnect) {
         _isFrameConnected = true;
         _addLogMessage("Connected to device");
         await _updateBatteryLevel();
         await _clearDisplay();
         _setupTapDetection();
-        break;
+        _reconnectionTimer?.cancel();
       } else {
-        retryCount++;
-        _addLogMessage("Failed to connect to device, attempt $retryCount of $maxRetries");
-        await Future.delayed(const Duration(seconds: 5));
+        _addLogMessage("Failed to connect to device");
       }
-    }
-    if (!_isFrameConnected) {
-      _addLogMessage("Failed to connect after $maxRetries attempts");
+    } on TimeoutException {
+      _addLogMessage("Connection attempt timed out");
+    } catch (e) {
+      _addLogMessage("Error connecting to device: $e");
     }
     notifyListeners();
+  }
+
+  void _startConnectionCheck() {
+    _connectionCheckTimer?.cancel();
+    _connectionCheckTimer = Timer.periodic(Duration(seconds: 5), (_) async {
+      bool currentStatus = frame.isConnected;
+      if (currentStatus != _isFrameConnected) {
+        _isFrameConnected = currentStatus;
+        if (!_isFrameConnected) {
+          _batteryLevel = 0;
+          _startReconnectionAttempts();
+        } else {
+          await _updateBatteryLevel();
+        }
+        notifyListeners();
+      }
+    });
+  }
+
+  void _startReconnectionAttempts() {
+    _reconnectionTimer?.cancel();
+    _reconnectionTimer = Timer.periodic(Duration(seconds: 3), (_) {
+      if (!_isFrameConnected) {
+        _connectToFrame(timeout: Duration(seconds: 3));
+      } else {
+        _reconnectionTimer?.cancel();
+      }
+    });
   }
 
   Future<void> _clearDisplay() async {
@@ -1030,25 +1081,6 @@ class AppController with ChangeNotifier {
     _batteryUpdateTimer = Timer.periodic(const Duration(minutes: 3), (_) async {
       await _updateBatteryLevel();
     });
-  }
-
-  Future<void> _loadSetupStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    _isSetupComplete = prefs.getBool('isSetupComplete') ?? false;
-    print("Loaded setup status: $_isSetupComplete"); // Debug print
-  }
-
-  Future<void> completeSetup(String openAIApiKey, String deepgramApiKey) async {
-    await Strings.saveOpenAIApiKey(openAIApiKey);
-    await Strings.saveDeepgramApiKey(deepgramApiKey);
-    await Strings.setSetupComplete();
-    _isSetupComplete = true;
-    _initializeDeepgram();
-    _assistantAPI.updateApiKey(openAIApiKey);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isSetupComplete', true); // Save setup status
-    print("Setup complete, status saved: $_isSetupComplete"); // Debug print
-    notifyListeners();
   }
 
   Future<void> updateAssistantTools() async {

@@ -125,14 +125,12 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: appController.isTranscribing
-                  ? Expanded(
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text(
-                            widget.note.content,
-                            style: TextStyle(color: Colors.white),
-                          ),
+                  ? SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          widget.note.content,
+                          style: TextStyle(color: Colors.white),
                         ),
                       ),
                     )
@@ -151,54 +149,67 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
             ),
           ),
           SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (appController.isTranscribing) {
-                      await appController.stopTranscription();
-                    }
-                    widget.note.title = _titleController.text;
-                    widget.note.content = _contentController.text;
-                    appController.updateNote(widget.note);
-                    _showSavedNotification(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color.fromRGBO(247, 252, 170, 1),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(5),
+          appController.isFrameConnected
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: _buildSaveButton(appController),
                     ),
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: Text('Save Note'),
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: appController.isTranscribing
-                      ? appController.stopTranscription
-                      : () {
-                          _contentController.text = widget.note.content;
-                          appController.startTranscription(widget.note);
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color.fromRGBO(42, 42, 42, 1),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(5),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: _buildTranscribeButton(appController),
                     ),
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: Text(appController.isTranscribing ? 'Stop' : 'Transcribe'),
-                ),
-              ),
-            ],
-          ),
+                  ],
+                )
+              : _buildSaveButton(appController),
         ],
       ),
+    );
+  }
+
+  Widget _buildSaveButton(AppController appController) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: () async {
+          if (appController.isTranscribing) {
+            await appController.stopTranscription();
+          }
+          widget.note.title = _titleController.text;
+          widget.note.content = _contentController.text;
+          appController.updateNote(widget.note);
+          _showSavedNotification(context);
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color.fromRGBO(247, 252, 170, 1),
+          foregroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(5),
+          ),
+          padding: EdgeInsets.symmetric(vertical: 16),
+        ),
+        child: Text('Save Note'),
+      ),
+    );
+  }
+
+  Widget _buildTranscribeButton(AppController appController) {
+    return ElevatedButton(
+      onPressed: appController.isTranscribing
+          ? appController.stopTranscription
+          : () {
+              _contentController.text = widget.note.content;
+              appController.startTranscription(widget.note);
+            },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Color.fromRGBO(42, 42, 42, 1),
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(5),
+        ),
+        padding: EdgeInsets.symmetric(vertical: 16),
+      ),
+      child: Text(appController.isTranscribing ? 'Stop' : 'Transcribe'),
     );
   }
 
