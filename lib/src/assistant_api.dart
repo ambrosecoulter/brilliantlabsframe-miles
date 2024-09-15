@@ -100,11 +100,19 @@ class AssistantAPI {
 
     if (role == 'user') {
       // Get current location and time only for user messages
-      String location = await _getCurrentAddress();
+      String? location;
+      try {
+        location = await _getCurrentAddress();
+      } catch (e) {
+        location = null;
+      }
       String currentTime = DateTime.now().toLocal().toString();
 
       // Append location and time to the message content
-      updatedContent = '$content\n\nUsers current location: $location\nUsers current time: $currentTime';
+      updatedContent = '$content\n\nUsers current time: $currentTime';
+      if (location != null) {
+        updatedContent += '\nUsers current location: $location';
+      }
     }
 
     var body = jsonEncode({
