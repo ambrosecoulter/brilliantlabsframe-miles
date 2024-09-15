@@ -59,7 +59,6 @@ class AppController with ChangeNotifier {
   bool get isInitialized => _isInitialized;
 
   late Deepgram _deepgram;
-  String _deepgramApiKey = "";
 
   bool _isTranscribing = false;
   bool get isTranscribing => _isTranscribing;
@@ -98,6 +97,8 @@ class AppController with ChangeNotifier {
 
   String _headsUpSensitivity = 'Normal';
   String get headsUpSensitivity => _headsUpSensitivity;
+
+  late String _deepgramApiKey; // Add this line
 
   // Add getters and setters for the new thresholds
   double get pitchThreshold => _pitchThreshold;
@@ -242,6 +243,7 @@ class AppController with ChangeNotifier {
       await _loadSetupStatus(); // Load setup status
       if (_isSetupComplete) {
         await Strings.loadApiKeys(); // Load API keys if setup is complete
+        _deepgramApiKey = await Strings.getDeepgramApiKey(); // Fetch the Deepgram API key
         _initializeDeepgram(); // Initialize Deepgram with loaded API key
       }
 

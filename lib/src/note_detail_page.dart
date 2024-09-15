@@ -125,12 +125,14 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: appController.isTranscribing
-                  ? SingleChildScrollView(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          widget.note.content,
-                          style: TextStyle(color: Colors.white),
+                  ? Expanded(
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            widget.note.content,
+                            style: TextStyle(color: Colors.white),
+                          ),
                         ),
                       ),
                     )

@@ -379,7 +379,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             context,
             MaterialPageRoute(builder: (context) => NotesPage()),
           );
-        } else if (title == 'API Settings') {
+        } else if (title == 'App Settings') {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => StringsSettingsPage()),
